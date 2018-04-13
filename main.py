@@ -3,8 +3,8 @@ from lib.util import *
 import cv2 as cv
 
 # Reading Data
-img1 = cv.imread('data/S2.jpg')
-img2 = cv.imread('data/S3.jpg')
+img1 = cv.imread('data/S5.jpg')
+img2 = cv.imread('data/S6.jpg')
 
 # Converting Images
 gray1= cv.cvtColor(img1,cv.COLOR_BGR2GRAY)
@@ -61,8 +61,10 @@ max_homography, ransac_matches, max_kp1, max_kp2 = ransac(matches, kp1, kp2, thr
 # Show current correspondences
 output_3 = cv.drawMatchesKnn(img1,max_kp1,img2,max_kp2,ransac_matches,None, flags=2)
 
-
-show_comparison_image(output_1, output_3)
-
 print(max_homography)
 print(M) # compare with the target Homography
+
+print ("Warping ...")
+stiched_img = warp(img1, img2, max_homography)
+
+show_comparison_image(output_1, output_3, stiched_img)

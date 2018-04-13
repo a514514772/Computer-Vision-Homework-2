@@ -155,3 +155,144 @@ def ransac(matches, kp1, kp2, s=4, threshold=3, maxIterations=2000, returnMatche
 
     return max_homography
 
+def myPerspectiveTransform(pts, H):
+    """
+        Return points after the perspective transformation
+
+        :param pts: List of points to be perspective transformed
+        :param H: A 3x3 perspective transform matrix
+
+        :type pts: Ndarray or list with size (-1, 2)
+        :type H: 3x3 Ndarray
+
+        :return: List of points after perspective transformation
+        :rtype: numpy.array
+    """
+
+    # Clone and reshape the list of points
+    new_pts = np.reshape(pts, (-1, 2))
+    # Allocate a vector filled with one with size (-1, 1)
+    one_vector = np.zeros((pts.shape[0], 1)) + 1
+    # Concatenate the one vector to the list of points to form the homogenious coordiniate system
+    new_pts = np.concatenate((new_pts, one_vector), axis=len(new_pts.shape)-1)
+
+    # Perform transformation and transform results into the pixel coord. system
+    # i.e., x' = x/w, and y' = y/w
+    for i, pt in enumerate(new_pts):
+        new_pts[i] = H.dot(pt.T)
+        new_pts[i] /= new_pts[i, -1]
+
+    # Return results with the same shape as the input has
+    return new_pts[:, :-1].reshape(pts.shape)
+
+def myWarpPerspective(img, H, output_shapes):
+    """
+        Return a transformed image according to the input homography matrix
+
+        :param img: An image to be perspective transformed
+        :param H: A 3x3 homography matrix
+        :param output_shapes: The shape of output canvas
+
+        :type img: Ndarray with the size (height, width, channels)
+        :type H: 3x3 Ndarray
+        :type output_shapes: Tuple (width, height)
+
+        :return: An image after perspective transformation
+        :rtype: numpy.array
+    """
+    c, r = output_shapes
+    
+    # Create an output canvas according to the parameter "output_shapes"
+    if len(img.shape) == 3:
+        output = np.zeros((r, c, 3))
+    else:
+        output = np.zeros((r, c, 1))
+
+    # List of pixel coordinates in canvas
+    inverse_map = [[i, j] for i in range(c) for j in range(r)]
+
+    # Covert the coordinates in the system of img2 back to the system of img1 
+    # to find out the reference points
+    inverse_map = np.asarray(inverse_map)
+    inverse_map = myPerspectiveTransform(inverse_map, np.linalg.inv(H))
+    
+    
+    for i in range(c):
+        for j in range(r):
+            index = i*r + j
+            ix, iy = inverse_map[index]
+            
+            # Because the converted coords. are float, 
+            # we need to find out four ref. points to do bilinear interpolation
+            tix, bix = np.ceil(ix), np.floor(ix)
+            tiy, biy = np.ceil(iy), np.floor(iy)
+
+            x_ratio = ix - bix
+            y_ratio = iy - biy
+
+            # Indexing does not allow float indices
+            tix, bix, tiy, biy = np.int32(tix), np.int32(bix), np.int32(tiy), np.int32(biy)
+            
+            # Boundary checking: each ref point should locate within the input image
+            if bix < 0 or biy < 0 or tix >= img.shape[1] or tiy >= img.shape[0]:
+                continue
+            else:
+            # Bilinear interpolation
+                output[j, i] = x_ratio*y_ratio*img[tiy, tix] \
+                    + x_ratio*(1-y_ratio)*img[biy, tix] \
+                    + (1-x_ratio)*y_ratio*img[tiy, bix] \
+                    + (1-x_ratio)*(1-y_ratio)*img[biy, bix]
+                output[j, i] = np.round(output[j, i])
+
+    # Cast back to uint8 because of displaying and return results
+    return np.uint8(output)
+
+def warp(img1, img2, M):
+    """
+        Return a stiched image given img1 and img2 according to the input homography matrix
+
+        :param img1: An image to be perspective transformed
+        :param img2: An image to be stitched to
+        :param H: A 3x3 homography matrix
+
+        :type img1: Ndarray with the size (height, width, channels)
+        :type img2: Ndarray with the size (height, width, channels)
+        :type H: 3x3 Ndarray
+
+        :return: A stiched image 
+        :rtype: numpy.array
+    """
+
+    # Get width and height of input images 
+    w1,h1 = img1.shape[:2]
+    w2,h2 = img2.shape[:2]
+
+    # Get the canvas dimesions
+    img2_dims = np.float32([ [0,0], [0,w2], [h2, w2], [h2,0] ]).reshape(-1,1,2)
+    img1_dims_temp = np.float32([ [0,0], [0,w1], [h1, w1], [h1,0] ]).reshape(-1,1,2)
+
+    # Find out the boundary of img1 after projected onto the coord. system of img2
+    img1_dims = myPerspectiveTransform(img1_dims_temp, M)
+
+    # Resulting dimensions
+    result_dims = np.concatenate( (img1_dims, img2_dims), axis = 0)
+    
+    # Getting images together
+    # Calculate dimensions of match points
+    x_min, y_min = np.int32(result_dims.min(axis=0).ravel() - 0.5)
+    x_max, y_max = np.int32(result_dims.max(axis=0).ravel() + 0.5)
+
+    # Create output array after affine transformation 
+    transform_dist = [-x_min,-y_min]
+    transform_array = np.array([[1, 0, transform_dist[0]], 
+                                [0, 1, transform_dist[1]], 
+                                [0,0,1]]) 
+    
+    # Warp images to get the resulting image
+    result_img = myWarpPerspective(img1, transform_array.dot(M),
+                                    (x_max-x_min, y_max-y_min))
+    
+    result_img[transform_dist[1]:w1+transform_dist[1], 
+                transform_dist[0]:h1+transform_dist[0]] = img2
+
+    return result_img
