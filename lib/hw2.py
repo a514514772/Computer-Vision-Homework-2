@@ -57,7 +57,7 @@ def homomat(points_in_img1, points_in_img2):
     return H / H[2, 2]
 
 
-def ransac(matches, kp1, kp2, s=4, threshold=22.5, maxIterations=2000, returnMatches=False):
+def ransac(matches, kp1, kp2, s=4, threshold=3, maxIterations=2000, returnMatches=False, inlierRatio=0.05, ransacRatio=0.6):
     """
         Return a ransac-optimized Homography matrix (np.array) with the size 3x3
 
@@ -65,9 +65,11 @@ def ransac(matches, kp1, kp2, s=4, threshold=22.5, maxIterations=2000, returnMat
         :param kp1: List points in Image 1
         :param kp2: List points in Image 2
         :param s: sample number
-        :param threshold: outlier threshold. error > threshold = outlier
+        :param threshold: outlier threshold. error > threshold = outlier. Between [1-10]
         :param maxIterations: maximal iteration of the ransac algorithm
-        :param returnMatches: if True, return final correspondence
+        :param returnMatches: if True, return final c
+        :param inlierRatio: probability minimal inlierRatio to check the model
+        :param ransacRatio: the ratio between inliers / #sample to be considered a good model.
 
         :type matches: List [cv2.DMatch]
         :type kp1: List cv2.KeyPoint
@@ -76,6 +78,8 @@ def ransac(matches, kp1, kp2, s=4, threshold=22.5, maxIterations=2000, returnMat
         :type threshold:float
         :type maxIterations: int
         :type returnMatches: bool
+        :type ransacRatio: float
+        :type inlierRatio: float
 
         :return: 3x3 Homography Matrix
         :rtype: numpy.array
@@ -90,8 +94,6 @@ def ransac(matches, kp1, kp2, s=4, threshold=22.5, maxIterations=2000, returnMat
 
     cnt_matches = len(matches)
 
-    threshold = np.sqrt(3.84 * (threshold ** 2))
-
     max_matches = []
     max_p1, max_p2 = [], []
     max_p1_sizes, max_p2_sizes = [], []
@@ -105,7 +107,7 @@ def ransac(matches, kp1, kp2, s=4, threshold=22.5, maxIterations=2000, returnMat
         homography = homomat(data_p1[:, :2], data_p2[:, :2])
 
         # Find P1 projection from the homography matrix
-        projected_p2 = np.linalg.solve(homography, matches_kp1.transpose())
+        projected_p2 = np.dot(homography, matches_kp1.transpose())
         projected_p2 = projected_p2[0:3] / projected_p2[2]  # make sure w' is 1
         projected_p2 = projected_p2.transpose()
 
@@ -123,23 +125,25 @@ def ransac(matches, kp1, kp2, s=4, threshold=22.5, maxIterations=2000, returnMat
             # Check for inliers
             if error < threshold:
                 current_matches.append([cv.DMatch(current_total, current_total, match[0].distance)])
-                current_p1.append(matches_kp1[i][0:2]);
+                current_p1.append(matches_kp1[i][0:2])
                 current_p2.append(matches_kp2[i][0:2])
-                current_p1_sizes.append(sizes_kp1[i]);
+                current_p1_sizes.append(sizes_kp1[i])
                 current_p2_sizes.append(sizes_kp2[i])
                 current_total += 1
 
         # If
-        if current_total > max_total:
+        if current_total > max_total and current_total >= np.round(inlierRatio*cnt_matches):
             max_matches = current_matches
-            max_p1 = current_p1;
+            max_p1 = current_p1
             max_p2 = current_p2
-            max_p1_sizes = current_p1_sizes;
+            max_p1_sizes = current_p1_sizes
             max_p2_sizes = current_p2_sizes
             max_total = current_total
 
-            if (current_total > 0.95 * cnt_matches):
+            # # we are done in case we have enough inliers
+            if current_total > cnt_matches * ransacRatio:
                 break
+
 
     # Re-evaluate the Homography based on the best inliers
     max_homography = homomat(np.array(max_p1), np.array(max_p2))
