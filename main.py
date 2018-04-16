@@ -2,9 +2,17 @@ from lib.hw2 import *
 from lib.util import *
 import cv2 as cv
 
+import argparse
+
+parser = argparse.ArgumentParser(description="CV HW2 image stitching")
+parser.add_argument('-img1', type=str, default='./data/1.jpg')
+parser.add_argument('-img2', type=str, default='./data/2.jpg')
+
+args = parser.parse_args()
+
 # Reading Data
-img1 = cv.imread('data/S5.jpg')
-img2 = cv.imread('data/S6.jpg')
+img1 = cv.imread(args.img1)
+img2 = cv.imread(args.img2)
 
 # Converting Images
 gray1= cv.cvtColor(img1,cv.COLOR_BGR2GRAY)
