@@ -5,9 +5,10 @@ import cv2 as cv
 import argparse
 
 parser = argparse.ArgumentParser(description="CV HW2 image stitching")
-parser.add_argument('-img1', type=str, default='./data/1.jpg')
-parser.add_argument('-img2', type=str, default='./data/2.jpg')
-
+#parser.add_argument('-img1', type=str, default='./data/1.jpg')
+#parser.add_argument('-img2', type=str, default='./data/2.jpg')
+parser.add_argument('-img1', type=str, default='./data/S5.jpg')
+parser.add_argument('-img2', type=str, default='./data/S6.jpg')
 args = parser.parse_args()
 
 # Reading Data

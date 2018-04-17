@@ -291,8 +291,23 @@ def warp(img1, img2, M):
     # Warp images to get the resulting image
     result_img = myWarpPerspective(img1, transform_array.dot(M),
                                     (x_max-x_min, y_max-y_min))
-    
-    result_img[transform_dist[1]:w1+transform_dist[1], 
-                transform_dist[0]:h1+transform_dist[0]] = img2
-
+    alpha = 0.1
+    #result_img[transform_dist[1]:w1+transform_dist[1], 
+    #            transform_dist[0]:h1+transform_dist[0]] = img2 
+    print(transform_dist)
+    #result_img[transform_dist[1]:w1+transform_dist[1], transform_dist[0]:transform_dist[0]+h1] = img1[transform_dist[1]:w1+transform_dist[1], transform_dist[0]:transform_dist[0]+h1] 
+    #result_img[transform_dist[1]:w1+transform_dist[1], 
+    #            transform_dist[0]:transform_dist[0]+50] = img2[0:w1 , 0 : 50] 
+    alpha = 0.5
+    img1_rest = x_max-x_min - h1
+    print(img1_rest)
+    #print(h1)
+    for j in range(0 , h1):
+        for i in range(0 , w1):
+            alpha = 0.02 * j
+            if alpha > 1:
+                alpha = 1
+            
+            result_img[i + transform_dist[1], j + transform_dist[0]] = img2[i , j] * alpha + result_img[i + transform_dist[1] , j + transform_dist[0]] *(1 - alpha)
+            #result_img[i + transform_dist[1], j + transform_dist[0]] = img2[i , j] * alpha 
     return result_img
